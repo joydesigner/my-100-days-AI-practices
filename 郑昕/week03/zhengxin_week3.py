@@ -142,7 +142,11 @@ def predict(model_path, vocab_path, input_strings, target_char="你"):
 
     x = []
     for input_string in input_strings:
-        x.append([vocab.get(char, vocab['unk']) for char in input_string])  #将输入序列化
+        # Pad or truncate each input string
+        input_string = input_string[:sentence_length]  # Truncate if too long
+        padded_string = input_string + " " * (sentence_length - len(input_string))
+        x.append([vocab.get(char, vocab['unk']) for char in padded_string])  # 序列化输入
+
     x = torch.LongTensor(x)
 
     with torch.no_grad():  #不计算梯度
