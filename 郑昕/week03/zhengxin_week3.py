@@ -66,7 +66,7 @@ def build_dataset(sample_length, vocab, sentence_length, target_char="你"):
     for i in range(sample_length):
         x, y = build_sample(vocab, sentence_length, target_char)
         dataset_x.append(x)
-        dataset_y.append([y])
+        dataset_y.append(y)
     return torch.LongTensor(dataset_x), torch.LongTensor(dataset_y)
 
 #建立模型
