@@ -102,7 +102,7 @@ def main():
     # Select optimizer
     optim = torch.optim.Adam(model.parameters(), lr=learning_rate)
     log = []
-    # 训练过程
+    # Training
     for epoch in range(epoch_num):
         model.train()
         watch_loss = []
