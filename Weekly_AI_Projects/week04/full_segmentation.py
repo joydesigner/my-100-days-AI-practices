@@ -1,6 +1,4 @@
-#week3作业
-
-#词典；每个词后方存储的是其词频，词频仅为示例，不会用到，也可自行修改
+# Dictionary; each word is followed by its frequency. The frequency is only an example and will not be used. You can also modify it yourself
 Dict = {"经常":0.1,
         "经":0.05,
         "有":0.1,
@@ -14,33 +12,33 @@ Dict = {"经常":0.1,
         "见分歧":0.05,
         "分":0.1}
 
-#待切分文本
+# Sentence to be segmented
 sentence = "经常有意见分歧"
 
-#实现全切分函数，输出根据字典能够切分出的所有的切分方式
+# Implement the full segmentation function and output all the segmentation methods that can be segmented according to the dictionary
 def all_cut(sentence, Dict):
     def dfs(remaining, path, result):
-        # 递归终止条件
+        # Recursion termination condition
         if not remaining:
             result.append(path)
             return
-        # 限制最大切分长度
+        # Limit the maximum segmentation length
         for i in range(1, len(remaining) + 1):
-            word = remaining[:i] # 从前往后切分
+            word = remaining[:i] # Get the first i characters
             if word in Dict:
-                dfs(remaining[i:], path + [word], result)  # 递归
+                dfs(remaining[i:], path + [word], result)  # Recursion
     result = []
     dfs(sentence, [], result)
     return result
 
-#调用全切分函数
+# Call the full split function
 target = all_cut(sentence, Dict)
 
-#输出结果
+# output
 for t in target:
     print(t)
 
-#目标输出;顺序不重要
+# Target output; order is not important
 # target = [
 #     ['经常', '有意见', '分歧'],
 #     ['经常', '有意见', '分', '歧'],
