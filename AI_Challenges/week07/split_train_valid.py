@@ -1,5 +1,5 @@
 import random
-'''切割训练集和验证集'''
+'''Splitting the training set and validation set'''
 def split_file(file_path):
     with open(file_path, 'r', encoding='utf8') as f:
         lines = f.readlines()[1:]
@@ -10,10 +10,10 @@ def split_file(file_path):
     train_lines = lines[:num_train]
     valid_lines = lines[num_train:]
 
-    with open('train_data.txt', 'w', encoding='utf8') as f_train:
+    with open('./data/train_data.txt', 'w', encoding='utf8') as f_train:
         f_train.writelines(train_lines)
 
-    with open('valid_data.txt', 'w', encoding='utf8') as f_valid:
+    with open('./data/valid_data.txt', 'w', encoding='utf8') as f_valid:
         f_valid.writelines(valid_lines)
 
 split_file('./data/text_classification_dataset.csv')
