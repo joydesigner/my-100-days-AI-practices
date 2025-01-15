@@ -1,16 +1,22 @@
+# -*- coding: utf-8 -*-
+
 import json
+import re
+import os
 import torch
+import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from transformers import BertTokenizer
 """
 数据加载
 """
 
+
 class DataGenerator:
     def __init__(self, data_path, config):
         self.config = config
         self.path = data_path
-        self.index_to_label = {0: 'Negative Reviews', 1: 'Good Reviews'}
+        self.index_to_label = {0: '差评', 1: '好评'}
         self.label_to_index = dict((y, x) for x, y in self.index_to_label.items())
         self.config["class_num"] = len(self.index_to_label)
         if self.config["model_type"] == "bert":
@@ -23,17 +29,42 @@ class DataGenerator:
         self.data = []
         with open(self.path, encoding="utf8") as f:
             for line in f:
-                line = json.loads(line)
-                tag = line["tag"]
-                label = self.label_to_index[tag]
-                title = line["title"]
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Split line into label and text
+                parts = line.split(",", 1)
+                if len(parts) != 2:
+                    print(f"Invalid line format: {line}")
+                    continue
+
+                label_str, title = parts
+                try:
+                    label = int(label_str)
+                except ValueError:
+                    print(f"Invalid label in line: {line}")
+                    continue
+
                 if self.config["model_type"] == "bert":
-                    input_id = self.tokenizer.encode(title, max_length=self.config["max_length"], pad_to_max_length=True)
+                    # Tokenize with attention mask
+                    encoded = self.tokenizer(
+                        title,
+                        max_length=self.config["max_length"],
+                        padding="max_length",
+                        truncation=True,
+                        return_tensors="pt"
+                    )
+                    input_id = encoded["input_ids"].squeeze(0)
+                    attention_mask = encoded["attention_mask"].squeeze(0)
                 else:
                     input_id = self.encode_sentence(title)
+                    attention_mask = torch.ones(len(input_id))  # No attention mask for custom tokenization
+
                 input_id = torch.LongTensor(input_id)
+                attention_mask = torch.LongTensor(np.array(attention_mask, dtype=np.int64))
                 label_index = torch.LongTensor([label])
-                self.data.append([input_id, label_index])
+                self.data.append([input_id, attention_mask, label_index])
         return
 
     def encode_sentence(self, text):
@@ -63,6 +94,7 @@ def load_vocab(vocab_path):
             token_dict[token] = index + 1  #0留给padding位置，所以从1开始
     return token_dict
 
+
 #用torch自带的DataLoader类封装数据
 def load_data(data_path, config, shuffle=True):
     dg = DataGenerator(data_path, config)
@@ -71,5 +103,5 @@ def load_data(data_path, config, shuffle=True):
 
 if __name__ == "__main__":
     from config import Config
-    dg = DataGenerator("./data/_valid.txt", Config)
+    dg = DataGenerator("valid_data.txt", Config)
     print(dg[1])
