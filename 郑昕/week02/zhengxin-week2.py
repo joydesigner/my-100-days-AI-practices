@@ -1,7 +1,6 @@
 """
-
-任务详情，请见README
-
+Train a multi-class classification model to predict the category of a 5-dimensional input vector based on predefined rules. The output of the model is a probability distribution across multiple categories.
+Use cross entropy to implement a multi-classification task. The maximum number in the 5-dimensional random vector belongs to the category in which dimension.
 """
 
 # coding:utf8
