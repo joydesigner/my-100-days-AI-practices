@@ -1,4 +1,4 @@
-# Linear Regression Model Project
+#  Week 3 Challenge - Linear Regression Model Training and Visualization
 
 ## Project Overview
 This project aims to implement a simple linear regression model using the PyTorch framework, minimize the loss function through the gradient descent algorithm, and predict a linear relationship. The main purpose of the project is to help beginners understand the basic principles and implementation process of gradient descent.

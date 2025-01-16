@@ -1,4 +1,4 @@
-# Multi-Class Classification with RNN and Cross-Entropy
+# Week 3 Challenge - Multi-Class Classification with RNN and Cross-Entropy
 
 ## Project Overview
 This project demonstrates how to train a multi-class classification model using a Recurrent Neural Network (RNN) and cross-entropy loss to determine the position of a specific character in a string. The model is trained to predict the index of a target character within a given string or indicate that the character is not present.

@@ -1,4 +1,4 @@
-# This challenge is to make a simple but practical Text Classification Model Training Framework
+#  Week 7 Challenge - Make a simple but practical Text Classification Model Training Framework
 
 ### Here I gave a Python-based framework to train and compare text classification models, supporting BERT and custom architectures.
 

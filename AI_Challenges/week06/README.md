@@ -1,4 +1,4 @@
-# Calculate the Bert model parameters.
+#  Week 6 Challenge - Calculate the Bert model parameters.
 ## Composition of Bert model
 1. Embedding layer
 - Token embeddings

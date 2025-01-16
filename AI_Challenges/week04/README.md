@@ -1,4 +1,4 @@
-# Full Segmentation with a Dictionary
+# Week 4 Challenge - Full Segmentation with a Dictionary
 
 ## Project Overview
 This project demonstrates how to perform full segmentation of a given sentence using a provided dictionary. The goal is to generate all possible ways to segment the sentence based on the words available in the dictionary.
