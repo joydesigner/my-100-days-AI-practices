@@ -14,38 +14,33 @@ from loader import load_data
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-"""
-Model training main program
-"""
 
-# Set seeds for reproducibility
-seed = Config["seed"]
-random.seed(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
+def validate_config(config):
+    required_keys = ["model_type", "learning_rate", "hidden_size", "batch_size", "pooling_style", "epoch", "model_path"]
+    for key in required_keys:
+        if key not in config:
+            raise ValueError(f"Missing required config key: {key}")
+
 
 def main(config):
-    # Create a directory to save the model
+    validate_config(config)
+
     if not os.path.isdir(config["model_path"]):
         os.mkdir(config["model_path"])
-    # Loading training data
+
     train_data = load_data(config["train_data_path"], config)
-    # Loading the model
     model = TorchModel(config)
-    # Indicates whether to use GPU
     cuda_flag = torch.cuda.is_available()
     if cuda_flag:
-        logger.info("GPU is available, migrate the model to GPU")
+        logger.info("Using GPU for training")
         model = model.cuda()
-    # Loading Optimizer
+
     optimizer = choose_optimizer(config, model)
-    # Loading effect test class
     evaluator = Evaluator(config, model, logger)
-    # 训练
+
     for epoch in range(config["epoch"]):
         model.train()
-        logger.info("Epoch %d begin" % (epoch + 1))
+        logger.info(f"Epoch {epoch + 1}/{config['epoch']} starting...")
         train_loss = []
 
         for index, batch_data in enumerate(train_data):
@@ -53,41 +48,49 @@ def main(config):
                 batch_data = [d.cuda() if isinstance(d, torch.Tensor) else d for d in batch_data]
 
             optimizer.zero_grad()
-            # Unpack batch data
+
             try:
-                input_ids, attention_mask, labels = batch_data
+                if len(batch_data) == 3:  # BERT models
+                    input_ids, attention_mask, labels = batch_data
+                elif len(batch_data) == 2:  # Non-BERT models
+                    input_ids, labels = batch_data
+                    attention_mask = None  # Set attention_mask to None for non-BERT models
+                else:
+                    raise ValueError(f"Unexpected batch_data length: {len(batch_data)}")
             except ValueError as e:
-                logger.error(f"Unexpected batch_data format at index {index}: {batch_data}. Error: {e}")
+                logger.error(f"Error in batch data format: {batch_data}. Error: {e}")
                 continue
 
-            # Forward pass
             loss = model(input_ids, attention_mask, labels)
             if not isinstance(loss, torch.Tensor):
-                logger.error(f"Loss is not a tensor: {loss}")
+                logger.error(f"Invalid loss value: {loss}")
                 continue
 
             loss.backward()
             optimizer.step()
-
             train_loss.append(loss.item())
-            if index % max(1, int(len(train_data) / 2)) == 0:
-                logger.info("Batch loss %f" % loss.item())
 
-        logger.info("Epoch average loss: %f" % np.mean(train_loss))
+            if index % max(1, int(len(train_data) / 10)) == 0:
+                logger.info(f"Batch {index}/{len(train_data)} loss: {loss.item():.4f}")
+
+        logger.info(f"Epoch {epoch + 1} average loss: {np.mean(train_loss):.4f}")
         acc = evaluator.eval(epoch)
 
-        # Save model after each epoch
-        model_path = os.path.join(config["model_path"], "epoch_%d.pth" % (epoch + 1))
+        model_path = os.path.join(config["model_path"], f"epoch_{epoch + 1}.pth")
         torch.save(model.state_dict(), model_path)
 
     return acc
 
+
 if __name__ == "__main__":
-    # DataFrame to store results
     results_df = pd.DataFrame(
         columns=["model_type", "learning_rate", "hidden_size", "batch_size", "pooling_style", "acc"])
+    iteration = 0
+    max_iterations = 3
+    save_interval = 5
+    results_path = "results.xlsx"
+    best_acc = 0
 
-    # Hyperparameter grid search
     for model_type in ["gated_cnn", "fast_text", "lstm"]:
         Config["model_type"] = model_type
         for lr in [1e-3, 1e-4]:
@@ -99,10 +102,17 @@ if __name__ == "__main__":
                     for pooling_style in ["avg", "max"]:
                         Config["pooling_style"] = pooling_style
 
-                        logger.info(f"Starting training with config: {Config}")
-                        acc = main(Config)
+                        if iteration >= max_iterations:
+                            logger.info("Reached max_iterations. Skipping further training.")
+                            break
 
-                        # Append results to the DataFrame
+                        logger.info(f"Starting training with config: {Config}")
+                        try:
+                            acc = main(Config)
+                        except Exception as e:
+                            logger.error(f"Error during training: {e}")
+                            acc = 0
+
                         results_df = results_df._append({
                             "model_type": model_type,
                             "learning_rate": lr,
@@ -112,7 +122,14 @@ if __name__ == "__main__":
                             "acc": acc
                         }, ignore_index=True)
 
-    # Save results to Excel
-    results_path = "results.xlsx"
+                        if acc > best_acc:
+                            best_acc = acc
+                            logger.info(f"New best accuracy: {best_acc:.4f} for model {model_type}")
+
+                        iteration += 1
+                        if iteration % save_interval == 0:
+                            results_df.to_excel(results_path, index=False)
+                            logger.info(f"Intermediate results saved to {results_path}")
+
     results_df.to_excel(results_path, index=False)
-    logger.info(f"Results saved to {results_path}")
+    logger.info(f"Final results saved to {results_path}")

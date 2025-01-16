@@ -1,32 +1,48 @@
 # -*- coding: utf-8 -*-
 
-import json
-import re
-import os
 import torch
-import numpy as np
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 from transformers import BertTokenizer
+import logging
+
 """
-数据加载
+Loading Data
 """
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
 class DataGenerator:
     def __init__(self, data_path, config):
+        """
+        Initializes the DataGenerator.
+        :param data_path: Path to the data file.
+        :param config: Configuration dictionary.
+        """
         self.config = config
         self.path = data_path
-        self.index_to_label = {0: '差评', 1: '好评'}
-        self.label_to_index = dict((y, x) for x, y in self.index_to_label.items())
+        self.index_to_label = {0: "Negative Reviews", 1: "Good Reviews"}
+        self.label_to_index = {y: x for x, y in self.index_to_label.items()}
         self.config["class_num"] = len(self.index_to_label)
-        if self.config["model_type"] == "bert":
+        self.use_bert = self.config["model_type"] == "bert"
+
+        # Initialize BERT tokenizer if required
+        if self.use_bert:
             self.tokenizer = BertTokenizer.from_pretrained(config["pretrain_model_path"])
+
+        # Load vocabulary for non-BERT models
         self.vocab = load_vocab(config["vocab_path"])
         self.config["vocab_size"] = len(self.vocab)
+
+        # Load data
+        self.data = []
         self.load()
 
     def load(self):
-        self.data = []
+        """
+        Loads and preprocesses the data from the file.
+        """
         with open(self.path, encoding="utf8") as f:
             for line in f:
                 line = line.strip()
@@ -36,46 +52,49 @@ class DataGenerator:
                 # Split line into label and text
                 parts = line.split(",", 1)
                 if len(parts) != 2:
-                    print(f"Invalid line format: {line}")
+                    logger.warning(f"Invalid line format: {line}")
                     continue
 
                 label_str, title = parts
                 try:
                     label = int(label_str)
                 except ValueError:
-                    print(f"Invalid label in line: {line}")
+                    logger.warning(f"Invalid label in line: {line}")
                     continue
 
-                if self.config["model_type"] == "bert":
-                    # Tokenize with attention mask
-                    encoded = self.tokenizer(
+                # Tokenize the title based on the model type
+                if self.use_bert:
+                    input_id = self.tokenizer.encode(
                         title,
                         max_length=self.config["max_length"],
                         padding="max_length",
-                        truncation=True,
-                        return_tensors="pt"
+                        truncation=True
                     )
-                    input_id = encoded["input_ids"].squeeze(0)
-                    attention_mask = encoded["attention_mask"].squeeze(0)
                 else:
                     input_id = self.encode_sentence(title)
-                    attention_mask = torch.ones(len(input_id))  # No attention mask for custom tokenization
 
+                # Convert to tensors
                 input_id = torch.LongTensor(input_id)
-                attention_mask = torch.LongTensor(np.array(attention_mask, dtype=np.int64))
                 label_index = torch.LongTensor([label])
-                self.data.append([input_id, attention_mask, label_index])
-        return
+                self.data.append([input_id, label_index])
+
+        logger.info(f"Loaded {len(self.data)} samples from {self.path}")
 
     def encode_sentence(self, text):
-        input_id = []
-        for char in text:
-            input_id.append(self.vocab.get(char, self.vocab["[UNK]"]))
-        input_id = self.padding(input_id)
-        return input_id
+        """
+        Encodes a sentence for non-BERT models using the vocabulary.
+        :param text: The input text.
+        :return: Encoded sentence as a list of integers.
+        """
+        input_id = [self.vocab.get(char, self.vocab["[UNK]"]) for char in text]
+        return self.padding(input_id)
 
-    #补齐或截断输入的序列，使其可以在一个batch内运算
     def padding(self, input_id):
+        """
+        Pads or truncates the input to the maximum length.
+        :param input_id: List of token IDs.
+        :return: Padded or truncated token list.
+        """
         input_id = input_id[:self.config["max_length"]]
         input_id += [0] * (self.config["max_length"] - len(input_id))
         return input_id
@@ -84,24 +103,62 @@ class DataGenerator:
         return len(self.data)
 
     def __getitem__(self, index):
-        return self.data[index]
+        """
+        Retrieves a single data point.
+        :param index: Index of the data point.
+        :return: Tuple containing input IDs, attention mask (if BERT), and label.
+        """
+        input_id, label = self.data[index]
+        if self.use_bert:
+            attention_mask = (input_id != 0).long()   # Generate attention mask for BERT
+            return input_id, attention_mask, label
+        return input_id, label # Non-BERT models
+
 
 def load_vocab(vocab_path):
+    """
+    Loads a vocabulary file into a dictionary.
+    :param vocab_path: Path to the vocabulary file.
+    :return: Dictionary mapping tokens to indices.
+    """
     token_dict = {}
     with open(vocab_path, encoding="utf8") as f:
         for index, line in enumerate(f):
             token = line.strip()
-            token_dict[token] = index + 1  #0留给padding位置，所以从1开始
+            token_dict[token] = index + 1  # 0 reserved for padding
+
+    if "[UNK]" not in token_dict:
+        raise ValueError("The vocab file must include the [UNK] token.")
     return token_dict
 
 
-#用torch自带的DataLoader类封装数据
 def load_data(data_path, config, shuffle=True):
+    """
+    Prepares a DataLoader for the dataset.
+    :param data_path: Path to the data file.
+    :param config: Configuration dictionary.
+    :param shuffle: Whether to shuffle the data.
+    :return: DataLoader object.
+    """
     dg = DataGenerator(data_path, config)
     dl = DataLoader(dg, batch_size=config["batch_size"], shuffle=shuffle)
     return dl
 
+
 if __name__ == "__main__":
     from config import Config
+
+    # Example configuration for testing
+    Config["model_type"] = "bert"
+    Config["batch_size"] = 4
+    Config["max_length"] = 30
+    Config["pretrain_model_path"] = "bert-base-uncased"
+    Config["vocab_path"] = "vocab.txt"
+
+    # Test DataGenerator and DataLoader
     dg = DataGenerator("valid_data.txt", Config)
-    print(dg[1])
+    dl = load_data("valid_data.txt", Config)
+
+    for batch in dl:
+        print(batch)
+        break
