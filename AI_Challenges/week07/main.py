@@ -86,7 +86,7 @@ if __name__ == "__main__":
     results_df = pd.DataFrame(
         columns=["model_type", "learning_rate", "hidden_size", "batch_size", "pooling_style", "acc"])
     iteration = 0
-    max_iterations = 3
+    max_iterations = 12  # Set a higher threshold for maximum iterations
     save_interval = 5
     results_path = "results.xlsx"
     best_acc = 0
@@ -101,10 +101,6 @@ if __name__ == "__main__":
                     Config["batch_size"] = batch_size
                     for pooling_style in ["avg", "max"]:
                         Config["pooling_style"] = pooling_style
-
-                        if iteration >= max_iterations:
-                            logger.info("Reached max_iterations. Skipping further training.")
-                            break
 
                         logger.info(f"Starting training with config: {Config}")
                         try:
@@ -127,9 +123,20 @@ if __name__ == "__main__":
                             logger.info(f"New best accuracy: {best_acc:.4f} for model {model_type}")
 
                         iteration += 1
+                        if iteration >= max_iterations:
+                            logger.info("Reached max_iterations. Stopping further training.")
+                            break
+
                         if iteration % save_interval == 0:
                             results_df.to_excel(results_path, index=False)
                             logger.info(f"Intermediate results saved to {results_path}")
+
+                    if iteration >= max_iterations:
+                        break
+                if iteration >= max_iterations:
+                    break
+            if iteration >= max_iterations:
+                break
 
     results_df.to_excel(results_path, index=False)
     logger.info(f"Final results saved to {results_path}")
